@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'pages/home_page.dart';
+import 'l10n/app_strings.dart';
+import 'screens/home_screen.dart';
+import 'services/reminder_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ReminderService.instance.init();
   runApp(const AutoMasterApp());
 }
 
@@ -14,13 +19,25 @@ class AutoMasterApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'AutoMaster',
+      localizationsDelegates: const [
+        AppStringsDelegate(),
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppStrings.supportedLocales,
+      themeMode: ThemeMode.system,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
-        scaffoldBackgroundColor: const Color(0xFFF8F9FB),
-        appBarTheme: const AppBarTheme(centerTitle: false),
+        brightness: Brightness.light,
       ),
-      home: const HomePage(),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.indigo,
+        brightness: Brightness.dark,
+      ),
+      home: const HomeScreen(),
     );
   }
 }

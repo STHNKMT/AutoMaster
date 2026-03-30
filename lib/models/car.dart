@@ -1,117 +1,78 @@
-import 'dart:convert';
-
 class Car {
-  Car({
-    required this.id,
+  const Car({
+    this.id,
     required this.brand,
     required this.model,
     required this.year,
-    required this.currentMileage,
-    required this.serviceIntervalKm,
-    required this.serviceIntervalMonths,
-    required this.lastServiceDate,
-    required this.lastServiceMileage,
+    this.vin,
+    required this.mileage,
+    required this.fuelType,
+    this.createdAt,
+    this.updatedAt,
   });
 
-  final String id;
+  final int? id;
   final String brand;
   final String model;
   final int year;
-  final int currentMileage;
-  final int? serviceIntervalKm;
-  final int? serviceIntervalMonths;
-  final DateTime lastServiceDate;
-  final int lastServiceMileage;
+  final String? vin;
+  final int mileage;
+  final String fuelType;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
-  DateTime get nextServiceDate {
-    if (serviceIntervalMonths == null) {
-      return lastServiceDate;
-    }
-    return DateTime(
-      lastServiceDate.year,
-      lastServiceDate.month + serviceIntervalMonths!,
-      lastServiceDate.day,
-    );
-  }
-
-  int? get nextServiceMileage {
-    if (serviceIntervalKm == null) {
-      return null;
-    }
-    return lastServiceMileage + serviceIntervalKm!;
-  }
-
-  Car withUpdatedMileage(int mileage) {
-    return copyWith(currentMileage: mileage);
-  }
-
-  Car markServiceDone({required DateTime serviceDate, required int serviceMileage}) {
-    return copyWith(
-      lastServiceDate: serviceDate,
-      lastServiceMileage: serviceMileage,
-      currentMileage: serviceMileage,
-    );
-  }
+  String get title => '$brand $model ($year)';
 
   Car copyWith({
-    String? id,
+    int? id,
     String? brand,
     String? model,
     int? year,
-    int? currentMileage,
-    int? serviceIntervalKm,
-    bool clearIntervalKm = false,
-    int? serviceIntervalMonths,
-    bool clearIntervalMonths = false,
-    DateTime? lastServiceDate,
-    int? lastServiceMileage,
+    String? vin,
+    bool clearVin = false,
+    int? mileage,
+    String? fuelType,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Car(
       id: id ?? this.id,
       brand: brand ?? this.brand,
       model: model ?? this.model,
       year: year ?? this.year,
-      currentMileage: currentMileage ?? this.currentMileage,
-      serviceIntervalKm:
-          clearIntervalKm ? null : serviceIntervalKm ?? this.serviceIntervalKm,
-      serviceIntervalMonths: clearIntervalMonths
-          ? null
-          : serviceIntervalMonths ?? this.serviceIntervalMonths,
-      lastServiceDate: lastServiceDate ?? this.lastServiceDate,
-      lastServiceMileage: lastServiceMileage ?? this.lastServiceMileage,
+      vin: clearVin ? null : vin ?? this.vin,
+      mileage: mileage ?? this.mileage,
+      fuelType: fuelType ?? this.fuelType,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  Map<String, dynamic> toMap() {
+  Map<String, Object?> toMap() {
     return {
       'id': id,
       'brand': brand,
       'model': model,
       'year': year,
-      'currentMileage': currentMileage,
-      'serviceIntervalKm': serviceIntervalKm,
-      'serviceIntervalMonths': serviceIntervalMonths,
-      'lastServiceDate': lastServiceDate.toIso8601String(),
-      'lastServiceMileage': lastServiceMileage,
+      'vin': vin,
+      'mileage': mileage,
+      'fuel_type': fuelType,
+      'created_at': (createdAt ?? DateTime.now()).toIso8601String(),
+      'updated_at': (updatedAt ?? DateTime.now()).toIso8601String(),
     };
   }
 
-  factory Car.fromMap(Map<String, dynamic> map) {
+  factory Car.fromMap(Map<String, Object?> map) {
     return Car(
-      id: map['id'] as String,
+      id: map['id'] as int?,
       brand: map['brand'] as String,
       model: map['model'] as String,
       year: map['year'] as int,
-      currentMileage: map['currentMileage'] as int,
-      serviceIntervalKm: map['serviceIntervalKm'] as int?,
-      serviceIntervalMonths: map['serviceIntervalMonths'] as int?,
-      lastServiceDate: DateTime.parse(map['lastServiceDate'] as String),
-      lastServiceMileage: map['lastServiceMileage'] as int,
+      vin: map['vin'] as String?,
+      mileage: map['mileage'] as int,
+      fuelType: map['fuel_type'] as String,
+      createdAt: DateTime.tryParse(map['created_at'] as String? ?? ''),
+      updatedAt: DateTime.tryParse(map['updated_at'] as String? ?? ''),
     );
   }
-
-  String toJson() => jsonEncode(toMap());
-
-  factory Car.fromJson(String source) =>
-      Car.fromMap(jsonDecode(source) as Map<String, dynamic>);
 }
