@@ -1,7 +1,7 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_strings.dart';
-import '../models/service.dart';
 import '../services/storage_service.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -10,60 +10,61 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cars = StorageService.instance.getCars();
-    final services = StorageService.instance.getAllServices();
 
     int upcoming = 0;
     int overdue = 0;
+    double totalFuelCost = 0;
 
-    for (final s in services) {
-      final matching = cars.where((c) => c.id == s.carId);
-      if (matching.isEmpty) continue;
-      final car = matching.first;
-      final status = s.statusForMileage(car.mileage);
-      if (status == ServiceStatus.soon) upcoming++;
-      if (status == ServiceStatus.overdue) overdue++;
+    for (final car in cars) {
+      final maintenance = StorageService.instance.getMaintenanceByCar(car.id);
+      if (maintenance.isNotEmpty) {
+        final delta = car.mileage - maintenance.first.mileage;
+        if (delta >= 10000) {
+          overdue++;
+        } else if (delta >= 8000) {
+          upcoming++;
+        }
+      }
+      totalFuelCost += StorageService.instance.getTotalFuelCost(car.id);
     }
-
-    final totalCost = StorageService.instance.getTotalCost();
-    final total = (upcoming + overdue).toDouble();
-    final progress = total == 0 ? 0.0 : upcoming / total;
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('dashboard_tab'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _MetricCard(title: AppStrings.t('dashboard_upcoming'), value: upcoming.toString(), color: Colors.amber),
-          _MetricCard(title: AppStrings.t('dashboard_overdue'), value: overdue.toString(), color: Colors.red),
-          _MetricCard(
-            title: AppStrings.t('dashboard_total_cost'),
-            value: '${totalCost.toStringAsFixed(0)} ${AppStrings.t('rub')}',
-            color: Colors.indigo,
-          ),
+          _Metric(title: AppStrings.t('dashboard_upcoming'), value: upcoming.toString(), color: Colors.amber),
+          _Metric(title: AppStrings.t('dashboard_overdue'), value: overdue.toString(), color: Colors.red),
+          _Metric(title: AppStrings.t('total_fuel_cost'), value: '${totalFuelCost.toStringAsFixed(0)} ₽', color: Colors.indigo),
           const SizedBox(height: 12),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Соотношение ближайших и просроченных ТО', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(value: progress, minHeight: 10, borderRadius: BorderRadius.circular(99)),
-                  const SizedBox(height: 8),
-                  Text('Ближайшие: ${upcoming.toString()} • Просроченные: ${overdue.toString()}'),
-                ],
+            child: SizedBox(
+              height: 220,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: BarChart(
+                  BarChartData(
+                    titlesData: const FlTitlesData(show: false),
+                    gridData: const FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barGroups: [
+                      BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: upcoming.toDouble(), color: Colors.amber)]),
+                      BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: overdue.toDouble(), color: Colors.red)]),
+                      BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: totalFuelCost == 0 ? 0 : 1, color: Colors.indigo)]),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+          )
         ],
       ),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.title, required this.value, required this.color});
+class _Metric extends StatelessWidget {
+  const _Metric({required this.title, required this.value, required this.color});
 
   final String title;
   final String value;

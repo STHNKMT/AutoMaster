@@ -16,21 +16,17 @@ class NotificationService {
     _initialized = true;
   }
 
-  Future<void> showSoonServiceNotification({
-    required int id,
-    required String title,
-    required String body,
-  }) async {
+  Future<void> showMaintenanceSoon(String carName, String text) async {
     await init();
     await _notifications.show(
-      id,
-      title,
-      body,
+      DateTime.now().millisecondsSinceEpoch % 100000,
+      '$carName: скоро ТО',
+      text,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'service_soon_channel',
-          'Скорое ТО',
-          channelDescription: 'Напоминания о скором техническом обслуживании',
+          'maintenance_channel',
+          'Напоминания ТО',
+          channelDescription: 'Уведомления о скором техническом обслуживании',
           importance: Importance.high,
           priority: Priority.high,
         ),

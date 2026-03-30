@@ -15,101 +15,94 @@ class AddCarScreen extends StatefulWidget {
 
 class _AddCarScreenState extends State<AddCarScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _brandController = TextEditingController();
-  final _modelController = TextEditingController();
-  final _yearController = TextEditingController();
-  final _mileageController = TextEditingController();
+  final _brand = TextEditingController();
+  final _model = TextEditingController();
+  final _year = TextEditingController();
+  final _mileage = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    final car = widget.initialCar;
-    if (car != null) {
-      _brandController.text = car.brand;
-      _modelController.text = car.model;
-      _yearController.text = car.year.toString();
-      _mileageController.text = car.mileage.toString();
+    final c = widget.initialCar;
+    if (c != null) {
+      _brand.text = c.brand;
+      _model.text = c.model;
+      _year.text = c.year.toString();
+      _mileage.text = c.mileage.toString();
     }
   }
 
   @override
   void dispose() {
-    _brandController.dispose();
-    _modelController.dispose();
-    _yearController.dispose();
-    _mileageController.dispose();
+    _brand.dispose();
+    _model.dispose();
+    _year.dispose();
+    _mileage.dispose();
     super.dispose();
   }
 
-  Future<void> _saveCar() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final now = DateTime.now();
 
     final car = Car(
       id: widget.initialCar?.id ?? now.microsecondsSinceEpoch.toString(),
-      brand: _brandController.text.trim(),
-      model: _modelController.text.trim(),
-      year: int.parse(_yearController.text.trim()),
-      mileage: int.parse(_mileageController.text.trim()),
+      brand: _brand.text.trim(),
+      model: _model.text.trim(),
+      year: int.parse(_year.text.trim()),
+      mileage: int.parse(_mileage.text.trim()),
+      photoPath: widget.initialCar?.photoPath,
       createdAt: widget.initialCar?.createdAt ?? now,
       updatedAt: now,
     );
 
     await StorageService.instance.saveCar(car);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.t('saved'))));
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final editing = widget.initialCar != null;
     return Scaffold(
-      appBar: AppBar(title: Text(editing ? AppStrings.t('edit_car') : AppStrings.t('add_car'))),
+      appBar: AppBar(title: Text(widget.initialCar == null ? AppStrings.t('add_car') : AppStrings.t('edit_car'))),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            TextFormField(
-              controller: _brandController,
-              decoration: InputDecoration(labelText: AppStrings.t('brand')),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Укажите марку' : null,
-            ),
+            TextFormField(controller: _brand, decoration: InputDecoration(labelText: AppStrings.t('brand')), validator: _required),
+            const SizedBox(height: 12),
+            TextFormField(controller: _model, decoration: InputDecoration(labelText: AppStrings.t('model')), validator: _required),
             const SizedBox(height: 12),
             TextFormField(
-              controller: _modelController,
-              decoration: InputDecoration(labelText: AppStrings.t('model')),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Укажите модель' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _yearController,
+              controller: _year,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: AppStrings.t('year')),
               validator: (v) {
                 final year = int.tryParse(v ?? '');
-                if (year == null || year < 1950 || year > DateTime.now().year + 1) {
-                  return 'Некорректный год';
-                }
+                if (year == null || year < 1950 || year > DateTime.now().year + 1) return 'Некорректный год';
                 return null;
               },
             ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: _mileageController,
+              controller: _mileage,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(labelText: '${AppStrings.t('mileage')} (км)'),
               validator: (v) {
-                final mileage = int.tryParse(v ?? '');
-                if (mileage == null || mileage < 0) return 'Некорректный пробег';
+                final value = int.tryParse(v ?? '');
+                if (value == null || value < 0) return 'Некорректный пробег';
                 return null;
               },
             ),
             const SizedBox(height: 20),
-            FilledButton(onPressed: _saveCar, child: Text(AppStrings.t('save'))),
+            FilledButton(onPressed: _save, child: Text(AppStrings.t('save'))),
           ],
         ),
       ),
     );
   }
+
+  String? _required(String? value) => (value == null || value.trim().isEmpty) ? 'Заполните поле' : null;
 }

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/car.dart';
-import '../models/service.dart';
 import '../services/storage_service.dart';
 import '../widgets/car_card.dart';
 import 'add_car_screen.dart';
 import 'car_details_screen.dart';
 
-enum CarsSort { mileage, lastService }
+enum CarsSort { mileage, lastMaintenance }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+  final _imagePicker = ImagePicker();
   CarsSort _sort = CarsSort.mileage;
 
   @override
@@ -27,56 +28,51 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  ServiceStatus _statusForCar(Car car) {
-    final services = StorageService.instance.getServicesByCar(car.id);
-    if (services.isEmpty) return ServiceStatus.noData;
-    ServiceStatus worst = ServiceStatus.ok;
-    for (final s in services) {
-      final status = s.statusForMileage(car.mileage);
-      if (status == ServiceStatus.overdue) return ServiceStatus.overdue;
-      if (status == ServiceStatus.soon) worst = ServiceStatus.soon;
-      if (status == ServiceStatus.noData && worst == ServiceStatus.ok) {
-        worst = ServiceStatus.noData;
-      }
-    }
-    return worst;
-  }
-
-  DateTime? _lastServiceDate(String carId) {
-    final services = StorageService.instance.getServicesByCar(carId);
-    return services.isEmpty ? null : services.first.date;
-  }
-
-  List<Car> _filteredSortedCars() {
-    final query = _searchController.text.trim().toLowerCase();
-    final cars = StorageService.instance.getCars().where((c) {
-      if (query.isEmpty) return true;
-      return c.brand.toLowerCase().contains(query) || c.model.toLowerCase().contains(query);
+  List<Car> _cars() {
+    final q = _searchController.text.trim().toLowerCase();
+    final list = StorageService.instance.getCars().where((c) {
+      if (q.isEmpty) return true;
+      return c.brand.toLowerCase().contains(q) || c.model.toLowerCase().contains(q);
     }).toList();
 
     if (_sort == CarsSort.mileage) {
-      cars.sort((a, b) => b.mileage.compareTo(a.mileage));
+      list.sort((a, b) => b.mileage.compareTo(a.mileage));
     } else {
-      cars.sort((a, b) {
-        final ad = _lastServiceDate(a.id) ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final bd = _lastServiceDate(b.id) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      list.sort((a, b) {
+        final al = StorageService.instance.getMaintenanceByCar(a.id);
+        final bl = StorageService.instance.getMaintenanceByCar(b.id);
+        final ad = al.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : al.first.date;
+        final bd = bl.isEmpty ? DateTime.fromMillisecondsSinceEpoch(0) : bl.first.date;
         return bd.compareTo(ad);
       });
     }
+    return list;
+  }
 
-    return cars;
+  String _statusText(Car car) {
+    final list = StorageService.instance.getMaintenanceByCar(car.id);
+    if (list.isEmpty) return 'Нет данных по ТО';
+    final km = car.mileage - list.first.mileage;
+    if (km >= 10000) return 'Просрочено';
+    if (km >= 8000) return 'Скоро ТО';
+    return 'Всё нормально';
+  }
+
+  Color _statusColor(Car car) {
+    final s = _statusText(car);
+    if (s == 'Просрочено') return Colors.red;
+    if (s == 'Скоро ТО') return Colors.amber;
+    if (s == 'Всё нормально') return Colors.green;
+    return Colors.blueGrey;
   }
 
   Future<void> _openAddCar([Car? car]) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => AddCarScreen(initialCar: car)),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => AddCarScreen(initialCar: car)));
     if (mounted) setState(() {});
   }
 
   Future<void> _deleteCar(Car car) async {
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(AppStrings.t('delete_car_title')),
@@ -88,15 +84,68 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (confirmed == true) {
+    if (ok == true) {
       await StorageService.instance.deleteCar(car.id);
       if (mounted) setState(() {});
     }
   }
 
+  Future<void> _updateMileage(Car car) async {
+    final controller = TextEditingController(text: car.mileage.toString());
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(AppStrings.t('update_mileage')),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(labelText: AppStrings.t('new_mileage')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppStrings.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(AppStrings.t('save'))),
+        ],
+      ),
+    );
+
+    if (saved == true) {
+      final value = int.tryParse(controller.text.trim());
+      if (value != null && value >= 0) {
+        await StorageService.instance.updateMileage(car.id, value);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.t('saved'))));
+        setState(() {});
+      }
+    }
+
+    controller.dispose();
+  }
+
+  Future<void> _addPhoto(Car car) async {
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(AppStrings.t('add_car_photo')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, ImageSource.gallery), child: Text(AppStrings.t('gallery'))),
+          FilledButton(onPressed: () => Navigator.pop(context, ImageSource.camera), child: Text(AppStrings.t('camera'))),
+        ],
+      ),
+    );
+
+    if (source == null) return;
+    final photo = await _imagePicker.pickImage(source: source, imageQuality: 85);
+    if (photo == null) return;
+
+    await StorageService.instance.updateCarPhoto(car.id, photo.path);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.t('saved'))));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cars = _filteredSortedCars();
+    final cars = _cars();
 
     return Scaffold(
       appBar: AppBar(
@@ -104,10 +153,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           PopupMenuButton<CarsSort>(
             initialValue: _sort,
-            onSelected: (value) => setState(() => _sort = value),
+            onSelected: (v) => setState(() => _sort = v),
             itemBuilder: (_) => [
               PopupMenuItem(value: CarsSort.mileage, child: Text(AppStrings.t('sort_mileage'))),
-              PopupMenuItem(value: CarsSort.lastService, child: Text(AppStrings.t('sort_last_service'))),
+              PopupMenuItem(value: CarsSort.lastMaintenance, child: Text(AppStrings.t('sort_last_service'))),
             ],
           ),
         ],
@@ -123,12 +172,9 @@ class _HomeScreenState extends State<HomeScreen> {
           TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText: AppStrings.t('search_hint'),
-              prefixIcon: const Icon(Icons.search),
-            ),
+            decoration: InputDecoration(hintText: AppStrings.t('search_hint'), prefixIcon: const Icon(Icons.search)),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           if (cars.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 40),
@@ -138,16 +184,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ...cars.map(
               (car) => CarCard(
                 car: car,
-                status: _statusForCar(car),
+                statusText: _statusText(car),
+                statusColor: _statusColor(car),
                 onTap: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => CarDetailsScreen(car: car)),
-                  );
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => CarDetailsScreen(car: car)));
                   if (mounted) setState(() {});
                 },
                 onEdit: () => _openAddCar(car),
                 onDelete: () => _deleteCar(car),
+                onUpdateMileage: () => _updateMileage(car),
+                onAddPhoto: () => _addPhoto(car),
               ),
             ),
         ],
