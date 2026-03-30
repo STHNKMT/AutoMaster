@@ -1,47 +1,47 @@
-import 'package:flutter/widgets.dart';
-
 class AppStrings {
-  AppStrings(this.locale);
-
-  final Locale locale;
-
-  static const supportedLocales = [Locale('en'), Locale('ru')];
-
-  static AppStrings of(BuildContext context) {
-    return Localizations.of<AppStrings>(context, AppStrings)!;
-  }
-
-  static const Map<String, Map<String, String>> _v = {
-    'en': {
-      'appTitle': 'AutoMaster',
-      'cars': 'Cars',
-      'addCar': 'Add car',
-      'upcoming': 'Upcoming',
-      'overdue': 'Overdue',
-      'totalCost': 'Total cost',
-    },
-    'ru': {
-      'appTitle': 'AutoMaster',
-      'cars': 'Автомобили',
-      'addCar': 'Добавить авто',
-      'upcoming': 'Скоро ТО',
-      'overdue': 'Просрочено',
-      'totalCost': 'Общие расходы',
-    }
+  static const Map<String, String> ru = {
+    'app_title': 'АвтоМастер',
+    'cars_tab': 'Автомобили',
+    'dashboard_tab': 'Дашборд',
+    'add_car': 'Добавить авто',
+    'edit_car': 'Редактировать авто',
+    'brand': 'Марка',
+    'model': 'Модель',
+    'year': 'Год',
+    'mileage': 'Пробег',
+    'save': 'Сохранить',
+    'delete': 'Удалить',
+    'cancel': 'Отмена',
+    'search_hint': 'Поиск по марке или модели',
+    'sort': 'Сортировка',
+    'sort_mileage': 'По пробегу',
+    'sort_last_service': 'По последнему ТО',
+    'no_cars': 'Нет автомобилей',
+    'car_details': 'Информация об авто',
+    'service_history': 'История ТО',
+    'no_services': 'Нет записей ТО',
+    'add_service': 'Добавить ТО',
+    'service_type': 'Тип ТО',
+    'service_date': 'Дата',
+    'service_cost': 'Стоимость',
+    'service_notes': 'Заметки',
+    'interval_km': 'Интервал по пробегу (км)',
+    'interval_months': 'Интервал по времени (месяцы)',
+    'dashboard_upcoming': 'Ближайшие ТО',
+    'dashboard_overdue': 'Просроченные ТО',
+    'dashboard_total_cost': 'Общие расходы',
+    'status_ok': 'Всё нормально',
+    'status_soon': 'Скоро ТО',
+    'status_overdue': 'Просрочено',
+    'status_no_data': 'Нет данных по интервалам',
+    'oil_change': 'Замена масла',
+    'filters': 'Фильтры',
+    'brakes': 'Тормоза',
+    'other': 'Другое',
+    'rub': '₽',
+    'delete_car_title': 'Удалить автомобиль?',
+    'delete_car_message': 'Все записи ТО для этого авто тоже будут удалены.',
   };
 
-  String t(String key) => _v[locale.languageCode]?[key] ?? _v['en']![key] ?? key;
-}
-
-class AppStringsDelegate extends LocalizationsDelegate<AppStrings> {
-  const AppStringsDelegate();
-
-  @override
-  bool isSupported(Locale locale) => AppStrings.supportedLocales.any((l) => l.languageCode == locale.languageCode);
-
-  @override
-  Future<AppStrings> load(Locale locale) async => AppStrings(locale);
-
-  @override
-  bool shouldReload(covariant LocalizationsDelegate<AppStrings> old) => false;
+  static String t(String key) => ru[key] ?? key;
 }

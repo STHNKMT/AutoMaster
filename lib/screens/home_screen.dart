@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_strings.dart';
 import '../models/car.dart';
-import '../models/service_interval.dart';
-import '../models/service_record.dart';
-import '../services/local_db_service.dart';
-import '../widgets/dashboard_section.dart';
-import 'add_edit_car_screen.dart';
+import '../models/service.dart';
+import '../services/storage_service.dart';
+import '../widgets/car_card.dart';
+import 'add_car_screen.dart';
 import 'car_details_screen.dart';
+
+enum CarsSort { mileage, lastService }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,18 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
-  List<Car> _cars = const [];
-  bool _loading = true;
-  String _sort = 'mileage_desc';
-  int _upcoming = 0;
-  int _overdue = 0;
-  double _totalCost = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-  }
+  CarsSort _sort = CarsSort.mileage;
 
   @override
   void dispose() {
@@ -36,148 +27,131 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _refresh() async {
-    final cars = await LocalDbService.instance.getCars(query: _searchController.text.trim(), sort: _sort);
-
-    int upcoming = 0;
-    int overdue = 0;
-    for (final car in cars) {
-      final intervals = await LocalDbService.instance.getIntervals(car.id!);
-      final records = await LocalDbService.instance.getServiceRecords(car.id!);
-      for (final i in intervals) {
-        final r = _latestRecord(i, records);
-        final nextDate = i.calculateNextDate(r?.date);
-        final nextMileage = i.calculateNextMileage(r?.mileage);
-        if (nextDate != null) {
-          if (nextDate.isBefore(DateTime.now())) {
-            overdue++;
-          } else if (nextDate.difference(DateTime.now()).inDays <= 30) {
-            upcoming++;
-          }
-        }
-        if (nextMileage != null) {
-          if (car.mileage >= nextMileage) {
-            overdue++;
-          } else if (nextMileage - car.mileage <= 500) {
-            upcoming++;
-          }
-        }
+  ServiceStatus _statusForCar(Car car) {
+    final services = StorageService.instance.getServicesByCar(car.id);
+    if (services.isEmpty) return ServiceStatus.noData;
+    ServiceStatus worst = ServiceStatus.ok;
+    for (final s in services) {
+      final status = s.statusForMileage(car.mileage);
+      if (status == ServiceStatus.overdue) return ServiceStatus.overdue;
+      if (status == ServiceStatus.soon) worst = ServiceStatus.soon;
+      if (status == ServiceStatus.noData && worst == ServiceStatus.ok) {
+        worst = ServiceStatus.noData;
       }
     }
-
-    final totalCost = await LocalDbService.instance.totalCost();
-
-    if (!mounted) return;
-    setState(() {
-      _cars = cars;
-      _upcoming = upcoming;
-      _overdue = overdue;
-      _totalCost = totalCost;
-      _loading = false;
-    });
+    return worst;
   }
 
-  ServiceRecord? _latestRecord(ServiceInterval interval, List<ServiceRecord> records) {
-    final matches = records
-        .where((r) => r.type == interval.type && (r.customType ?? '') == (interval.customType ?? ''))
-        .toList();
-    if (matches.isEmpty) return null;
-    matches.sort((a, b) => b.date.compareTo(a.date));
-    return matches.first;
+  DateTime? _lastServiceDate(String carId) {
+    final services = StorageService.instance.getServicesByCar(carId);
+    return services.isEmpty ? null : services.first.date;
   }
 
-  Future<void> _openCarForm([Car? car]) async {
-    final changed = await Navigator.push<bool>(
+  List<Car> _filteredSortedCars() {
+    final query = _searchController.text.trim().toLowerCase();
+    final cars = StorageService.instance.getCars().where((c) {
+      if (query.isEmpty) return true;
+      return c.brand.toLowerCase().contains(query) || c.model.toLowerCase().contains(query);
+    }).toList();
+
+    if (_sort == CarsSort.mileage) {
+      cars.sort((a, b) => b.mileage.compareTo(a.mileage));
+    } else {
+      cars.sort((a, b) {
+        final ad = _lastServiceDate(a.id) ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bd = _lastServiceDate(b.id) ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bd.compareTo(ad);
+      });
+    }
+
+    return cars;
+  }
+
+  Future<void> _openAddCar([Car? car]) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => AddEditCarScreen(car: car)),
+      MaterialPageRoute(builder: (_) => AddCarScreen(initialCar: car)),
     );
-    if (changed == true) await _refresh();
+    if (mounted) setState(() {});
   }
 
   Future<void> _deleteCar(Car car) async {
-    await LocalDbService.instance.deleteCar(car.id!);
-    await _refresh();
-  }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(AppStrings.t('delete_car_title')),
+        content: Text(AppStrings.t('delete_car_message')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppStrings.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(AppStrings.t('delete'))),
+        ],
+      ),
+    );
 
-  Future<void> _export() async {
-    final path = await LocalDbService.instance.saveExportFile();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported: $path')));
+    if (confirmed == true) {
+      await StorageService.instance.deleteCar(car.id);
+      if (mounted) setState(() {});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cars = _filteredSortedCars();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Auto Service / ТО'),
+        title: Text(AppStrings.t('cars_tab')),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              setState(() => _sort = v);
-              await _refresh();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'mileage_desc', child: Text('Sort: mileage ↓')),
-              PopupMenuItem(value: 'mileage_asc', child: Text('Sort: mileage ↑')),
-              PopupMenuItem(value: 'updated_desc', child: Text('Sort: last service')),
+          PopupMenuButton<CarsSort>(
+            initialValue: _sort,
+            onSelected: (value) => setState(() => _sort = value),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: CarsSort.mileage, child: Text(AppStrings.t('sort_mileage'))),
+              PopupMenuItem(value: CarsSort.lastService, child: Text(AppStrings.t('sort_last_service'))),
             ],
           ),
-          IconButton(onPressed: _export, icon: const Icon(Icons.download)),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openCarForm(),
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddCar,
+        icon: const Icon(Icons.add),
+        label: Text(AppStrings.t('add_car')),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(
-                        onPressed: _refresh,
-                        icon: const Icon(Icons.filter_alt_outlined),
-                      ),
-                      hintText: 'Search by brand/model/VIN',
-                    ),
-                    onSubmitted: (_) => _refresh(),
-                  ),
-                  const SizedBox(height: 10),
-                  DashboardSection(upcoming: _upcoming, overdue: _overdue, totalCost: _totalCost),
-                  const SizedBox(height: 10),
-                  if (_cars.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child: Center(child: Text('No cars yet. Tap + to add.')),
-                    ),
-                  ..._cars.map(
-                    (car) => Card(
-                      child: ListTile(
-                        title: Text(car.title),
-                        subtitle: Text('Mileage: ${car.mileage} km • Fuel: ${car.fuelType}${car.vin == null ? '' : '\nVIN: ${car.vin}'}'),
-                        onTap: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => CarDetailsScreen(car: car)));
-                          await _refresh();
-                        },
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(onPressed: () => _openCarForm(car), icon: const Icon(Icons.edit)),
-                            IconButton(onPressed: () => _deleteCar(car), icon: const Icon(Icons.delete_outline)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: AppStrings.t('search_hint'),
+              prefixIcon: const Icon(Icons.search),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (cars.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 40),
+              child: Center(child: Text(AppStrings.t('no_cars'))),
+            )
+          else
+            ...cars.map(
+              (car) => CarCard(
+                car: car,
+                status: _statusForCar(car),
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => CarDetailsScreen(car: car)),
+                  );
+                  if (mounted) setState(() {});
+                },
+                onEdit: () => _openAddCar(car),
+                onDelete: () => _deleteCar(car),
               ),
             ),
+        ],
+      ),
     );
   }
 }

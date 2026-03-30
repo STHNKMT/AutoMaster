@@ -1,37 +1,30 @@
 class Car {
   const Car({
-    this.id,
+    required this.id,
     required this.brand,
     required this.model,
     required this.year,
-    this.vin,
     required this.mileage,
-    required this.fuelType,
-    this.createdAt,
-    this.updatedAt,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
-  final int? id;
+  final String id;
   final String brand;
   final String model;
   final int year;
-  final String? vin;
   final int mileage;
-  final String fuelType;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
-  String get title => '$brand $model ($year)';
+  String get displayName => '$brand $model';
 
   Car copyWith({
-    int? id,
+    String? id,
     String? brand,
     String? model,
     int? year,
-    String? vin,
-    bool clearVin = false,
     int? mileage,
-    String? fuelType,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -40,39 +33,33 @@ class Car {
       brand: brand ?? this.brand,
       model: model ?? this.model,
       year: year ?? this.year,
-      vin: clearVin ? null : vin ?? this.vin,
       mileage: mileage ?? this.mileage,
-      fuelType: fuelType ?? this.fuelType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  Map<String, Object?> toMap() {
+  Map<String, dynamic> toMap() {
     return {
       'id': id,
       'brand': brand,
       'model': model,
       'year': year,
-      'vin': vin,
       'mileage': mileage,
-      'fuel_type': fuelType,
-      'created_at': (createdAt ?? DateTime.now()).toIso8601String(),
-      'updated_at': (updatedAt ?? DateTime.now()).toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
-  factory Car.fromMap(Map<String, Object?> map) {
+  factory Car.fromMap(Map<dynamic, dynamic> map) {
     return Car(
-      id: map['id'] as int?,
+      id: map['id'] as String,
       brand: map['brand'] as String,
       model: map['model'] as String,
       year: map['year'] as int,
-      vin: map['vin'] as String?,
       mileage: map['mileage'] as int,
-      fuelType: map['fuel_type'] as String,
-      createdAt: DateTime.tryParse(map['created_at'] as String? ?? ''),
-      updatedAt: DateTime.tryParse(map['updated_at'] as String? ?? ''),
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
     );
   }
 }
