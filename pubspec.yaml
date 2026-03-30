@@ -1,0 +1,18 @@
+name: automaster
+version: 1.2.0+1
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.5
+  flutter_local_notifications: ^17.2.3
+  image_picker: ^1.1.2
+  fl_chart: ^0.68.0
+
+flutter:
+  uses-material-design: true
